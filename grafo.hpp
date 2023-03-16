@@ -154,7 +154,7 @@ template <class T>
 Grafo<T>::Arista::Arista() : peso(), nextAri(nullptr), destino(nullptr) { }
 
 template <class T>
-Grafo<T>::Arista::Arista(Vertice* d, const std::string& p) : peso(p), nextAri(nullptr), destino(d) { }
+Grafo<T>::Arista::Arista(Vertice* d, const std::string& p) : peso(p), destino(d) { }
 
 template <class T>
 std::string Grafo<T>::Arista::getPeso() const {
@@ -282,30 +282,28 @@ void Grafo<T>::deleteVer(Vertice* p) {
 
 template <class T>
 void Grafo<T>::deleteAri(Vertice* origen, Vertice* destino) {
-  if(origen == nullptr or destino == nullptr) {
+  if (origen == nullptr or destino == nullptr) {
     throw Exception("La posicion es invalida, Grafo<T>::deleteAri()");
     }
 
   Arista* aux(origen->getArco());
-  while(aux != nullptr and aux->getDestino() != destino) {
+  while (aux != nullptr and aux->getDestino() != destino) {
     aux = aux->getNextAri();
     }
 
-  if(aux == nullptr) {
-    std::cerr << "Error: No se encontro la arista" << std::endl;
-    return;
+  if (aux == nullptr) {
+    throw Exception("No se encontro la arista, Grafo<T>::deleteAri()");
     }
 
-  if(aux->getPrevAri() != nullptr) {
+  if (aux->getPrevAri() != nullptr) {
     aux->getPrevAri()->setNextAri(aux->getNextAri());
     }
-
-  if(aux->getNextAri() != nullptr) {
-    aux->getNextAri()->setPrevAri(aux->getPrevAri());
+  else {
+    origen->setArco(aux->getNextAri());
     }
 
-  if(aux == origen->getArco()) {
-    aux = aux->getNextAri();
+  if (aux->getNextAri() != nullptr) {
+    aux->getNextAri()->setPrevAri(aux->getPrevAri());
     }
 
   delete aux;
@@ -315,7 +313,7 @@ template <class T>
 void Grafo<T>::deleteAllAri(Arista* arco) {
   Arista* aux;
 
-  while(arco != nullptr) {
+  while(arco) {
     aux = arco;
     arco = arco->getNextAri();
 
@@ -326,7 +324,7 @@ void Grafo<T>::deleteAllAri(Arista* arco) {
 template <class T>
 void Grafo<T>::deleteAll() {
   Vertice* aux;
-  while(anchor != nullptr) {
+  while(anchor) {
     aux = anchor;
     deleteAllAri(anchor->getArco());
     anchor = anchor->getNextVer();
@@ -341,11 +339,11 @@ std::string Grafo<T>::toString() const {
   Vertice* aux(anchor);
   Arista* tmp;
 
-  while(aux != nullptr) {
+  while(aux) {
     tmp = aux->getArco();
 
     result+= aux->getDato().toString();
-    while(tmp != nullptr) {
+    while(tmp) {
       result+= "  ---";
       result+= tmp->getPeso();
       result+= "-->  ";
@@ -364,37 +362,43 @@ std::string Grafo<T>::toString() const {
 
 template <class T>
 void Grafo<T>::writeToDisk() {
-  std::ofstream myFileV("file01.txt", std::ios_base::trunc);
-  std::ofstream myFileA("file02.txt", std::ios_base::trunc);
+  std::ofstream myFileV("file01.txt", std::ios_base::out);
+  std::ofstream myFileA("file02.txt", std::ios_base::out);
 
-  if(!myFileV) {
-    throw Exception("No se pudo abrir file01.txt para escritura, Grafo<T>::writeToDisk()");
-    }
-
-  if(!myFileA) {
-    throw Exception("No se pudo abrir file02.txt para escritura, Grafo<T>::writeToDisk()");
-    }
-
-  Vertice* aux(anchor);
-  Arista* tmp;
-
-  while(aux != nullptr) {
-    myFileV << aux->getDato();
-
-    tmp = aux->getArco();
-    while(tmp) {
-      myFileA << aux->getDato()
-              << tmp->getDestino()->getDato()
-              << tmp->getPeso()
-              << '$';
-      tmp = tmp->getNextAri();
+  try {
+    if(!myFileV.is_open()) {
+      throw Exception("No se pudo abrir file01.txt para escritura, Grafo<T>::writeToDisk()");
       }
 
-    aux = aux->getNextVer();
-    }
+    if(!myFileA.is_open()) {
+      throw Exception("No se pudo abrir file02.txt para escritura, Grafo<T>::writeToDisk()");
+      }
 
-  myFileV.close();
-  myFileA.close();
+    Vertice* aux(anchor);
+
+    while(aux) {
+      myFileV << aux->getDato();
+
+      Arista* tmp = aux->getArco();
+      while(tmp) {
+        myFileA << aux->getDato()
+                << tmp->getDestino()->getDato()
+                << tmp->getPeso()
+                << '$';
+        tmp = tmp->getNextAri();
+        }
+
+      aux = aux->getNextVer();
+      }
+
+    myFileV.close();
+    myFileA.close();
+    }
+  catch(Exception& ex) {
+    myFileV.close();
+    myFileA.close();
+    throw Exception(ex.what());
+    }
   }
 
 template <class T>
@@ -402,36 +406,40 @@ void Grafo<T>::readFromDisk() {
   std::ifstream myFileV("file01.txt", std::ios::in);
   std::ifstream myFileA("file02.txt", std::ios::in);
 
-  if(!myFileV) {
-    throw Exception("No se pudo abrir file01.txt para lectura, Grafo<T>::readFromDisk()");
+  try {
+    if(!myFileV.is_open()) {
+      throw Exception("No se pudo abrir file01.txt para lectura, Grafo<T>::readFromDisk()");
+      }
+
+    if(!myFileA.is_open()) {
+      throw Exception("No se pudo abrir file02.txt para lectura, Grafo<T>::readFromDisk()");
+      }
+
+    T myObjet;
+    T myObjet2;
+    std::string myString;
+    deleteAll();
+
+    while(myFileV >> myObjet) {
+      insertVer(myObjet);
+      }
+    myFileV.close();
+
+    while(myFileA >> myObjet >> myObjet2 && std::getline(myFileA, myString, '$')) {
+      Vertice* a = findData(myObjet);
+      Vertice* b = findData(myObjet2);
+
+      if(a != nullptr && b != nullptr) {
+        insertAri(a, b, myString);
+        }
+      }
+    myFileA.close();
     }
-
-  if(!myFileA) {
-    throw Exception("No se pudo abrir file01.txt para lectura, Grafo<T>::readFromDisk()");
+  catch(Exception& ex) {
+    myFileV.close();
+    myFileA.close();
+    throw Exception(ex.what());
     }
-
-  T myObjet;
-  T myObjet2;
-  std::string myString;
-  Vertice* a;
-  Vertice* b;
-  deleteAll();
-
-  while((myFileV >> myObjet)) {
-    insertVer(myObjet);
-    }
-
-  while((myFileA >> myObjet)) {
-    myFileA >> myObjet2;
-    std::getline(myFileA, myString, '$');
-
-    a = findData(myObjet);
-    b = findData(myObjet2);
-    insertAri(a, b, myString);
-    }
-
-  myFileV.close();
-  myFileA.close();
   }
 
 #endif // GRAFO_HPP_INCLUDED
