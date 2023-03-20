@@ -10,7 +10,6 @@ class Grafo {
     class Arista;
   private:
     class Vertice {
-      private:
         T dato;
         Vertice* prevVer;
         Vertice* nextVer;
@@ -75,6 +74,7 @@ class Grafo {
   private:
     Vertice* anchor;
     void deleteAllAri(Arista*);
+    void deleteAllAri(Vertice*);
 
   public:
     typedef Vertice* nodoVer;
@@ -263,18 +263,22 @@ void Grafo<T>::deleteVer(Vertice* p) {
     throw Exception("La posicion es invalida, Grafo<T>::deleteVer()");
     }
 
-  if(p->getPrevVer() != nullptr) {
+  if(p->getPrevVer()) {
     p->getPrevVer()->setNextVer(p->getNextVer());
     }
 
-  if(p->getNextVer() != nullptr) {
+  if(p->getNextVer()) {
     p->getNextVer()->setPrevVer(p->getPrevVer());
     }
 
   if(p == anchor) {
     anchor = anchor->getNextVer();
+    if(anchor) {
+      anchor->setPrevVer(nullptr);
+      }
     }
 
+  deleteAllAri(p);
   deleteAllAri(p->getArco());
 
   delete p;
@@ -282,28 +286,32 @@ void Grafo<T>::deleteVer(Vertice* p) {
 
 template <class T>
 void Grafo<T>::deleteAri(Vertice* origen, Vertice* destino) {
-  if (origen == nullptr or destino == nullptr) {
-    throw Exception("La posicion es invalida, Grafo<T>::deleteAri()");
+  if(!origen or !destino) {
+    throw Exception("Posicion invalida, Grafo<T>::deleteAri()");
     }
 
   Arista* aux(origen->getArco());
-  while (aux != nullptr and aux->getDestino() != destino) {
+  while(aux and aux->getDestino() != destino) {
     aux = aux->getNextAri();
     }
 
-  if (aux == nullptr) {
-    throw Exception("No se encontro la arista, Grafo<T>::deleteAri()");
+  if(!aux) {
+    throw Exception("Arco no encontrado, Grafo<T>::deleteAri()");
     }
 
-  if (aux->getPrevAri() != nullptr) {
+  if(aux->getPrevAri()) {
     aux->getPrevAri()->setNextAri(aux->getNextAri());
     }
-  else {
-    origen->setArco(aux->getNextAri());
+
+  if(aux->getNextAri()) {
+    aux->getNextAri()->setPrevAri(aux->getPrevAri());
     }
 
-  if (aux->getNextAri() != nullptr) {
-    aux->getNextAri()->setPrevAri(aux->getPrevAri());
+  if(origen->getArco() == aux) {
+    origen->setArco(origen->getArco()->getNextAri());
+    if(origen->getArco()) {
+      origen->getArco()->setPrevAri(nullptr);
+      }
     }
 
   delete aux;
@@ -316,8 +324,24 @@ void Grafo<T>::deleteAllAri(Arista* arco) {
   while(arco) {
     aux = arco;
     arco = arco->getNextAri();
-
     delete aux;
+    }
+  }
+
+template <class T>
+void Grafo<T>::deleteAllAri(Vertice* ver) {
+  Vertice* auxVer(anchor);
+  while(ver and auxVer) {
+
+    Arista* auxAri(auxVer->getArco());
+    while(auxAri) {
+      if(ver == auxAri->getDestino()) {
+        deleteAri(auxVer, ver);
+        }
+      auxAri = auxAri->getNextAri();
+      }
+
+    auxVer = auxVer->getNextVer();
     }
   }
 
@@ -341,25 +365,24 @@ std::string Grafo<T>::toString() const {
 
   while(aux) {
     tmp = aux->getArco();
-
     result+= aux->getDato().toString();
     while(tmp) {
       result+= "  ---";
       result+= tmp->getPeso();
       result+= "-->  ";
-      result+= tmp->getDestino()->getDato().toString();
-      tmp = tmp->getNextAri();
-      if(tmp != nullptr) {
+      result+= tmp->getDestino()->getDato().toString();//Falla
+
+      if(tmp->getNextAri() != nullptr) {
         result+= "\n";
         result+= aux->getDato().toString();
         }
+      tmp = tmp->getNextAri();
       }
     result+= "\n";
     aux = aux->getNextVer();
     }
   return result;
   }
-
 template <class T>
 void Grafo<T>::writeToDisk() {
   std::ofstream myFileV("file01.txt", std::ios_base::out);
@@ -433,6 +456,7 @@ void Grafo<T>::readFromDisk() {
         insertAri(a, b, myString);
         }
       }
+
     myFileA.close();
     }
   catch(Exception& ex) {
